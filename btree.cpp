@@ -2,6 +2,7 @@
 #include "bnode.h"
 #include "bnode_inner.h"
 #include "bnode_leaf.h"
+#include <iostream>
 
 #include <cassert>
 
@@ -57,10 +58,20 @@ bool Btree::insert(VALUETYPE value) {
     else{
         Bnode_leaf* new_leaf = leaf->split(value); // new_leaf after split(latter one)
         VALUETYPE head = new_leaf->get(0); // value which should be pop up to parent
+        if(size == BTREE_LEAF_SIZE + 1)
+        {   
+            Bnode_inner* newroot = new Bnode_inner;
+            newroot->insert(leaf, 0);
+            //newroot->insert(new_leaf, 1);
+            root = newroot;
+            leaf->parent = dynamic_cast<Bnode_inner*>(root);
+            new_leaf->parent = dynamic_cast<Bnode_inner*>(root);
+        }
         Bnode_inner* pre_node = leaf->parent;// parent node
         while(1){
             if(pre_node->getNumChildren() < BTREE_FANOUT){ // if not parent node isn't overflow
                 int idx = pre_node->insert(head);
+                cout<<"head"<<head<<endl;
                 pre_node->insert(new_leaf, idx + 1); // insert new_leaf as a child
                 break;
             }
@@ -96,12 +107,14 @@ bool Btree::remove(VALUETYPE value) {
     int DOM = -1;  //1:merge, 0:distribute
     Bnode_leaf* left;
     Bnode_leaf* right;
+    cout<<"num:"<<leaf->getNumValues()<<endl;
     if(leaf->getNumValues() - 1 >= BTREE_LEAF_SIZE/2) //if leaf can be removed
     {
         leaf->remove(value);
     }
     else // can not be removed directly
     {
+        leaf->remove(value);
         if(leaf->next == nullptr) // rightmost
         {
             left = leaf->prev;
@@ -143,7 +156,9 @@ bool Btree::remove(VALUETYPE value) {
         }
         if(DOM == 0) //redistribute
         { 
+            cout<<"IN DOM=0"<<endl;
             VALUETYPE res = left->redistribute(right);
+            cout<<"res: "<<res<<endl;
             modify_ancestor(res, right);
         }
         else //merge
@@ -151,88 +166,99 @@ bool Btree::remove(VALUETYPE value) {
             Bnode_inner* right_parent = right->parent;
             VALUETYPE ret = left->merge(right);
             int val_idx = right_parent->find_value(ret);
-            right_parent->remove_value(val_idx);
             int idx = right_parent->find_child(right);
             right_parent->remove_child(idx);
+            right_parent->remove_value(val_idx);  
             if(left->parent != right_parent) // is not sibling
             {
                 modify_ancestor(left->next->get(0), left->next);
             }
-            Bnode_inner* left_inner = right_parent;
+            Bnode_inner* left_inner;
             Bnode_inner* right_inner;
-            while(right_parent->getNumValues() < (BTREE_FANOUT - 1)/2) // when right parent is not half full
+            cout<<"parent"<<endl;
+            if(right_parent->parent == nullptr) // if reach root
             {
-                Bnode_inner* pop = right_parent->parent;
-                if(pop == nullptr) // if reach root
+                if(right_parent->getNumValues() == 0) // if root is empty
                 {
-                    if(right_parent->getNumValues() == 0) // if root is empty
-                    {
-                        right_parent->clear();
-                        right_parent->remove_child(0);
-                        left_inner->parent = nullptr;
-                        root = left_inner;
-                    }
-                    break;
+                    left->parent = nullptr;
+                    root = left;
                 }
-                int p_idx = pop->find_child(right_parent);
-                int pop_chd = pop->getNumChildren();
+          
+            }
+            else{
+                while(right_parent->getNumValues() < (BTREE_FANOUT - 1)/2) // when right parent is not half full
+                {
+                    Bnode_inner* pop = right_parent->parent;
+                    // if(pop == nullptr) // if reach root
+                    // {
+                    //     if(right_parent->getNumValues() == 0) // if root is empty
+                    //     {
 
-                if(p_idx == 0) //if is leftmost
-                {
-                    left_inner =  right_parent;
-                    right_inner = dynamic_cast<Bnode_inner*>(pop->getChild(p_idx + 1));
-                    if(right_inner->getNumValues() > (BTREE_FANOUT - 1)/2)
+                    //         left_inner->parent = nullptr;
+                    //         root = left_inner;
+                    //     }
+                    //     break;
+                    // }
+                    int p_idx = pop->find_child(right_parent);
+                    int pop_chd = pop->getNumChildren();
+
+                    if(p_idx == 0) //if is leftmost
                     {
-                        DOM = 0;//redistribute
+                        left_inner =  right_parent;
+                        right_inner = dynamic_cast<Bnode_inner*>(pop->getChild(p_idx + 1));
+                        if(right_inner->getNumValues() > (BTREE_FANOUT - 1)/2)
+                        {
+                            DOM = 0;//redistribute
+                        }
+                        else DOM = 1; // merge
                     }
-                    else DOM = 1; // merge
-                }
-                else if(p_idx == pop_chd - 1) // is rightmost
-                {
-                    left_inner =  dynamic_cast<Bnode_inner*>(pop->getChild(p_idx - 1));
-                    right_inner = right_parent;
-                    if(left_inner->getNumValues() > (BTREE_FANOUT - 1)/2)
+                    else if(p_idx == pop_chd - 1) // is rightmost
                     {
-                        DOM = 0;//redistribute
-                    }
-                    else DOM = 1; //merge
-                }
-                else //middle
-                {
-                    Bnode_inner* v1 = dynamic_cast<Bnode_inner*>(pop->getChild(p_idx + 1));
-                    Bnode_inner* v2 = dynamic_cast<Bnode_inner*>(pop->getChild(p_idx - 1));
-                    if(v1->getNumValues() > (BTREE_FANOUT - 1)/2)
-                    {
-                        DOM = 0;
-                        left_inner = right_parent;
-                        right_inner = v1;
-                    }
-                    else if(v2->getNumValues() > (BTREE_FANOUT - 1)/2)
-                    {
-                        DOM = 0;
-                        left_inner = v2;
+                        left_inner =  dynamic_cast<Bnode_inner*>(pop->getChild(p_idx - 1));
                         right_inner = right_parent;
+                        if(left_inner->getNumValues() > (BTREE_FANOUT - 1)/2)
+                        {
+                            DOM = 0;//redistribute
+                        }
+                        else DOM = 1; //merge
                     }
-                    else{
-                        DOM = 1; // merge
-                        left_inner = right_parent;
-                        right_inner = v1;
+                    else //middle
+                    {
+                        Bnode_inner* v1 = dynamic_cast<Bnode_inner*>(pop->getChild(p_idx + 1));
+                        Bnode_inner* v2 = dynamic_cast<Bnode_inner*>(pop->getChild(p_idx - 1));
+                        if(v1->getNumValues() > (BTREE_FANOUT - 1)/2)
+                        {
+                            DOM = 0;
+                            left_inner = right_parent;
+                            right_inner = v1;
+                        }
+                        else if(v2->getNumValues() > (BTREE_FANOUT - 1)/2)
+                        {
+                            DOM = 0;
+                            left_inner = v2;
+                            right_inner = right_parent;
+                        }
+                        else{
+                            DOM = 1; // merge
+                            left_inner = right_parent;
+                            right_inner = v1;
+                        }
                     }
-                }
-                if(DOM == 0) // redistribution
-                {
-                    VALUETYPE res_dis = left_inner->redistribute(right_inner, right_inner->parent->find_child(right_inner) - 1);
-                    modify_ancestor(res_dis, right_inner);
-                    break; // get out of loop
-                }
-                else // merge
-                {
-                    VALUETYPE res_dis = left_inner->merge(right_inner, right_inner->parent->find_child(right_inner) - 1);
-                    int val_idx = left_inner->parent->find_value(res_dis);
-                    left_inner->parent->replace_value(res_dis, val_idx);
-                    int idx = left_inner->parent->find_child(right);
-                    left_inner->parent->remove_child(idx);
-                    right_parent = left_inner->parent;
+                    if(DOM == 0) // redistribution
+                    {
+                        VALUETYPE res_dis = left_inner->redistribute(right_inner, right_inner->parent->find_child(right_inner) - 1);
+                        modify_ancestor(res_dis, right_inner);
+                        break; // get out of loop
+                    }
+                    else // merge
+                    {
+                        VALUETYPE res_dis = left_inner->merge(right_inner, right_inner->parent->find_child(right_inner) - 1);
+                        int val_idx = left_inner->parent->find_value(res_dis);
+                        left_inner->parent->replace_value(res_dis, val_idx);
+                        int idx = left_inner->parent->find_child(right);
+                        left_inner->parent->remove_child(idx);
+                        right_parent = left_inner->parent;
+                    }
                 }
             }
         }

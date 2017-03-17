@@ -1,6 +1,7 @@
 #include "bnode_leaf.h"
 #include <vector>
 
+
 using namespace std;
 
 Bnode_leaf::~Bnode_leaf() {
@@ -25,7 +26,8 @@ VALUETYPE Bnode_leaf::merge(Bnode_leaf* rhs) {
 }
 
 VALUETYPE Bnode_leaf::redistribute(Bnode_leaf* rhs) {
-    assert(num_values + rhs->getNumValues() < BTREE_LEAF_SIZE);
+    //assert(num_values + rhs->getNumValues() < BTREE_LEAF_SIZE);
+
     vector<Data*> all_values(values, values + num_values);
 
     int rhs_num = rhs->getNumValues();
@@ -53,6 +55,7 @@ Bnode_leaf* Bnode_leaf::split(VALUETYPE insert_value) {
     vector<Data*> all_values(values, values + num_values);
 
     Bnode_leaf* split_node = new Bnode_leaf;
+   
     clear();
 
     for (int i = 0; i < BTREE_LEAF_SIZE/2; ++i)
@@ -71,8 +74,8 @@ Bnode_leaf* Bnode_leaf::split(VALUETYPE insert_value) {
     }
 
     // I like to do the asserts :)
-    assert(num_values == BTREE_LEAF_SIZE/2);
-    assert(split_node->getNumValues() == BTREE_LEAF_SIZE/2 + 1);
+    //assert(num_values == BTREE_LEAF_SIZE/2);
+    //assert(split_node->getNumValues() == BTREE_LEAF_SIZE/2 + 1);
 
     split_node->parent = parent; // they are siblings
 
