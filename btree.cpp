@@ -294,7 +294,7 @@ Data* Btree::search(VALUETYPE value) {
     return nullptr;
 }
 
-void modify_ancestor(int val, Bnode* rhs){
+void Btree::modify_ancestor(VALUETYPE val, Bnode* rhs){
     Bnode_inner* par = rhs->parent;
     while(par->get(0) > val){
         par = par->parent;
