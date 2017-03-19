@@ -1,4 +1,5 @@
 #include "bnode_leaf.h"
+#include <iostream>
 #include <vector>
 
 
@@ -11,8 +12,11 @@ Bnode_leaf::~Bnode_leaf() {
 
 VALUETYPE Bnode_leaf::merge(Bnode_leaf* rhs) {
     assert(num_values + rhs->getNumValues() < BTREE_LEAF_SIZE);
-
-    VALUETYPE retVal = rhs->get(0);
+    VALUETYPE retVal;
+    if(rhs->getNumValues() > 0)
+        retVal = rhs->get(0);
+    else 
+        retVal = -1;
 
     Bnode_leaf* save = next;
     next = next->next;

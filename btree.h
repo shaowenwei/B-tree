@@ -93,7 +93,8 @@ private:
                                                           // less than all of the ancestors value
     */
     //bnode_inner* get_common_ancestor(left, right);
-    void modify_ancestor(VALUETYPE, Bnode*);
+    void modify_ancestor(VALUETYPE, Bnode*, Bnode*);
+    //void remove_modify_ancestor(VALUETYPE, Bnode*);
 
 };
 

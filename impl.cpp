@@ -158,8 +158,6 @@ void Bnode_inner::remove_value(int idx) {
 }
 
 void Bnode_inner::remove_child(int idx) {
-    cout<<"///idx: "<<idx<<endl;
-    cout<<"///noc: "<<num_children<<endl;
     assert(idx >= 0);
     assert(idx < num_children);
     for (int i = idx; i < num_children-1; ++i)

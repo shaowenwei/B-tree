@@ -56,8 +56,10 @@ bool Btree::insert(VALUETYPE value) {
         leaf->insert(value);
     }
     else{
+        cout<<"in else"<<endl;
         Bnode_leaf* new_leaf = leaf->split(value); // new_leaf after split(latter one)
         VALUETYPE head = new_leaf->get(0); // value which should be pop up to parent
+        cout<<"head: "<<head<<endl;
         if(size == BTREE_LEAF_SIZE + 1)
         {   
             Bnode_inner* newroot = new Bnode_inner;
@@ -68,28 +70,43 @@ bool Btree::insert(VALUETYPE value) {
             new_leaf->parent = dynamic_cast<Bnode_inner*>(root);
         }
         Bnode_inner* pre_node = leaf->parent;// parent node
+        Bnode_inner* new_node;
+        int flag = 0;//0:leaf 1:inner
         while(1){
             if(pre_node->getNumChildren() < BTREE_FANOUT){ // if not parent node isn't overflow
                 int idx = pre_node->insert(head);
-                cout<<"head"<<head<<endl;
-                pre_node->insert(new_leaf, idx + 1); // insert new_leaf as a child
+                if(flag == 0) pre_node->insert(new_leaf, idx + 1);
+                else pre_node->insert(new_node, idx + 1); // insert new_leaf as a child
                 break;
             }
             else{ //if parent is overflow
+                //cout<<pre_node->parent->getNumChildren()<<endl;
+                cout<<"overflow"<<endl;
+                cout<<"pre_node->getNumChildren()"<<pre_node->getNumChildren()<<endl;
                 int new_head = -1; //the value should be push up to parent
-                Bnode_inner* new_node = pre_node->split(new_head, head, new_leaf);
+                Bnode_inner *mynew_node; 
+                if(flag == 0) mynew_node = pre_node->split(new_head, head, new_leaf);
+                else mynew_node = pre_node->split(new_head, head, new_node);
+                cout<<"new_head: "<<new_head<<endl;
+                cout<<mynew_node->get(0)<<endl;
+                cout<<mynew_node->getNumChildren()<<endl;
+                cout<<pre_node->get(0)<<endl;
+                cout<<pre_node->getNumChildren()<<endl;
                 if(pre_node->parent == nullptr){ // if parent is the root
+                    cout<<"in null"<<endl;
                     Bnode_inner* new_root = new Bnode_inner;
                     new_root->insert(new_head);
                     new_root->insert(pre_node, 0);
-                    new_root->insert(new_node, 1);
-                    new_node->parent = new_root;
+                    new_root->insert(mynew_node, 1);
+                    mynew_node->parent = new_root;
                     pre_node->parent = new_root;
                     root = new_root;
                     break;
                 }
+                flag = 1;
                 head = new_head;
-                pre_node = new_node->parent;
+                pre_node = mynew_node->parent;
+                new_node = mynew_node;
             }
         }
     }
@@ -156,26 +173,52 @@ bool Btree::remove(VALUETYPE value) {
         }
         if(DOM == 0) //redistribute
         { 
-            cout<<"IN DOM=0"<<endl;
             VALUETYPE res = left->redistribute(right);
-            cout<<"res: "<<res<<endl;
-            modify_ancestor(res, right);
+            if(right->parent == left->parent){
+                int i = right->parent->find_child(right);
+                right->parent->replace_value(res, i-1);
+                Bnode_leaf* first = dynamic_cast<Bnode_leaf*>(right->parent->getChild(0));
+                int temp = first->get(0);
+                cout<<temp<<endl;
+                
+            }
+            else modify_ancestor(res, left, right);
         }
         else //merge
         { 
+            cout<<"IN MERGE"<<endl; 
             Bnode_inner* right_parent = right->parent;
             VALUETYPE ret = left->merge(right);
-            int val_idx = right_parent->find_value(ret);
+            // cout<<"ret: "<<ret<<endl;
+            // int val_idx = right_parent->find_value(ret);
+            // cout<<"val: "<<val_idx<<endl;
+            // int idx = right_parent->find_child(right);
+            // cout<<"idx: "<<idx<<endl;
+            // right_parent->remove_child(idx);
+            // cout<<right_parent->getNumChildren()<<endl;
+            // cout<<right_parent->getNumValues()<<endl;
+            // if(val_idx == -1) {
+            //     right_parent->remove_value(idx);
+            // }  
+            //else right_parent->remove_value(val_idx); 
+
             int idx = right_parent->find_child(right);
-            right_parent->remove_child(idx);
-            right_parent->remove_value(val_idx);  
-            if(left->parent != right_parent) // is not sibling
+            if(left->parent == right->parent)
             {
-                modify_ancestor(left->next->get(0), left->next);
+                right_parent->remove_child(idx);
+                right_parent->remove_value(idx - 1);
+            } 
+            else // is not sibling
+            {
+                right_parent->remove_child(idx);
+                right_parent->remove_value(idx);
+                cout<<"not sibling"<<endl;
+                cout<<"left->next0: "<<left->next->get(0)<<endl;
+                //modify_ancestor(left->next->get(0), left->next);
+                modify_ancestor(left->next->get(0), left, left->next);
             }
             Bnode_inner* left_inner;
             Bnode_inner* right_inner;
-            cout<<"parent"<<endl;
             if(right_parent->parent == nullptr) // if reach root
             {
                 if(right_parent->getNumValues() == 0) // if root is empty
@@ -188,22 +231,28 @@ bool Btree::remove(VALUETYPE value) {
             else{
                 while(right_parent->getNumValues() < (BTREE_FANOUT - 1)/2) // when right parent is not half full
                 {
+                    cout<<"right_parent->getNumValues(): "<<right_parent->getNumValues()<<endl;
                     Bnode_inner* pop = right_parent->parent;
-                    // if(pop == nullptr) // if reach root
-                    // {
-                    //     if(right_parent->getNumValues() == 0) // if root is empty
-                    //     {
-
-                    //         left_inner->parent = nullptr;
-                    //         root = left_inner;
-                    //     }
-                    //     break;
-                    // }
+                    if(pop == nullptr) // if reach root
+                    {
+                        if(right_parent->getNumValues() == 0) // if root is empty
+                        {
+                            cout<<"/////"<<right_parent->getNumChildren()<<endl;
+                            Bnode_inner* newroot = dynamic_cast<Bnode_inner*>(right_parent->getChild(0));
+                            newroot->parent = nullptr;
+                            root = newroot;
+                            cout<<"/////"<<dynamic_cast<Bnode_inner*>(root)->getNumChildren()<<endl;
+                            
+                        }
+                        break;
+                    }
                     int p_idx = pop->find_child(right_parent);
+
                     int pop_chd = pop->getNumChildren();
 
                     if(p_idx == 0) //if is leftmost
                     {
+                        cout<<"IN LEFT MOST"<<endl;
                         left_inner =  right_parent;
                         right_inner = dynamic_cast<Bnode_inner*>(pop->getChild(p_idx + 1));
                         if(right_inner->getNumValues() > (BTREE_FANOUT - 1)/2)
@@ -214,6 +263,7 @@ bool Btree::remove(VALUETYPE value) {
                     }
                     else if(p_idx == pop_chd - 1) // is rightmost
                     {
+                        cout<<"IN RIGHT MOST"<<endl;
                         left_inner =  dynamic_cast<Bnode_inner*>(pop->getChild(p_idx - 1));
                         right_inner = right_parent;
                         if(left_inner->getNumValues() > (BTREE_FANOUT - 1)/2)
@@ -246,16 +296,37 @@ bool Btree::remove(VALUETYPE value) {
                     }
                     if(DOM == 0) // redistribution
                     {
+                        //cout<<"HERE"<<endl;
                         VALUETYPE res_dis = left_inner->redistribute(right_inner, right_inner->parent->find_child(right_inner) - 1);
-                        modify_ancestor(res_dis, right_inner);
+                        cout<<res_dis<<endl;
+                        Bnode_inner* temp = right_inner;
+                        Bnode* child;
+                        while(1)
+                        {
+                            child = temp->getChild(0);
+                            Bnode_leaf* test = dynamic_cast<Bnode_leaf*>(child);
+                            if(test) break;
+                            else{
+                                temp = dynamic_cast<Bnode_inner*>(child);
+                            }
+                        }
+                        Bnode_leaf* result = dynamic_cast<Bnode_leaf*>(child);
+                        VALUETYPE small = result->get(0);
+                        cout<<"sm"<<small<<endl;
+                        modify_ancestor(small, left_inner, right_inner);
                         break; // get out of loop
                     }
                     else // merge
                     {
+                        cout<<"left_inner->getNumChildren(): "<<left_inner->getNumChildren()<<endl;
+                        cout<<"right_inner->getNumChildren(): "<<right_inner->getNumChildren()<<endl;
                         VALUETYPE res_dis = left_inner->merge(right_inner, right_inner->parent->find_child(right_inner) - 1);
-                        int val_idx = left_inner->parent->find_value(res_dis);
-                        left_inner->parent->replace_value(res_dis, val_idx);
-                        int idx = left_inner->parent->find_child(right);
+                        cout<<"merge-left_inner->getNumChildren(): "<<left_inner->getNumChildren()<<endl;
+                        cout<<"merge-right_inner->getNumChildren(): "<<right_inner->getNumChildren()<<endl;
+                        cout<<"res_dis: "<<res_dis<<endl;
+                        int idx = left_inner->parent->find_child(right_inner);
+                        cout<<"idx: "<<idx<<endl;
+                        left_inner->parent->remove_value(idx - 1);
                         left_inner->parent->remove_child(idx);
                         right_parent = left_inner->parent;
                     }
@@ -320,16 +391,43 @@ Data* Btree::search(VALUETYPE value) {
     return nullptr;
 }
 
-void Btree::modify_ancestor(VALUETYPE val, Bnode* rhs){
-    Bnode_inner* par = rhs->parent;
-    while(par->get(0) > val){
-        par = par->parent;
+// void Btree::redistribute_modify_ancestor(VALUETYPE val, Bnode* rhs){
+//     Bnode_inner* par = rhs->parent;
+//     int find = 0;
+//     while(par != nullptr){
+//         cout<<"IN WHILE"<<endl;
+//         if(par->get(0) > val){
+//             find = 1;
+//             break;
+//         }
+//         else par = par->parent;
+//     }
+//     cout<<par->get(0)<<endl;
+//     int idx = par->find_value_gt(val);
+//     cout<<idx<<endl;
+//     par->replace_value(val, idx);
+// }
+
+
+void Btree::modify_ancestor(VALUETYPE val, Bnode* lhs, Bnode* rhs){
+    
+    while(1)
+    {
+        if(lhs->parent == rhs->parent)
+        {
+            int idx = rhs->parent->find_child(rhs);
+            rhs->parent->replace_value(val, idx - 1);
+            break;
+        }
+        else
+        {
+            lhs = lhs->parent;
+            rhs = rhs->parent;
+        }
+
     }
-    int idx = par->find_value_gt(val);
-    par->replace_value(val, idx-1);
+    
 }
-
-
 
 
 

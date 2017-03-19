@@ -115,7 +115,9 @@ void large_test1() {
     cout << btree << endl;
     btree.insert(3); //test an insertion which causes root-split
     cout << btree << endl;
-    btree.remove(3); btree.remove(2);//test removals which makes the root leaf again
+    btree.remove(3); 
+    cout << btree << endl;
+    btree.remove(2);//test removals which makes the root leaf again
     cout << btree << endl;
     btree.insert(3); btree.insert(5); btree.insert(7); btree.insert(9); btree.insert(11); //insertions which cause splits
     cout << btree << endl;
@@ -123,7 +125,9 @@ void large_test1() {
     cout << btree << endl;
     btree.remove(11); //Prefer redistribution over merging for removals
     cout << btree << endl;
-    btree.remove(5); btree.remove(6); //Prefer redistribution with right node over left node
+    btree.remove(5); 
+    cout << btree << endl;
+    btree.remove(6); //Prefer redistribution with right node over left node
     cout << btree << endl;
     btree.remove(8); //Prefer merging with right node over left node.
     cout << btree << endl;
@@ -232,13 +236,13 @@ int main() {
     //freopen(filename.c_str(),"w",stdout); //Comment out if you want to write to a file. You should to set the
                                             //values in constants.h to create the corresponding output
     
-//      small_test();
-//        splitTestFromSpec();
-    testForRedistribution();
-//    large_test1();
-//    large_test2();
-//    stress_insert(500);
-//    stress_insert_delete(500);
+  //    small_test();
+   //     splitTestFromSpec();
+ //   testForRedistribution();
+ //  large_test1();
+ //   large_test2();
+ //   stress_insert(500);
+    stress_insert_delete(500);
     
     return 0;
 }

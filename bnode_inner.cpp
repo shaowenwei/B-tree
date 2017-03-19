@@ -1,39 +1,66 @@
 #include "bnode_inner.h"
 #include "bnode_leaf.h"
 #include <vector>
-
+#include <iostream>
 using namespace std;
 
 VALUETYPE Bnode_inner::merge(Bnode_inner* rhs, int parent_idx) {
+    cout<<"IN INNER MERGE. "<<endl;
     assert(rhs->parent == parent); // can only merge siblings
-    assert(rhs->num_values > 0);
+    //assert(rhs->num_values > 0);
     int numval = rhs->getNumValues();
     int numChd = rhs->getNumChildren();
-    
-    remove_value(num_values - 1);
-    remove_child(num_children - 1);
+    // cout<<"rhs-numval: "<<numval<<endl;
+    // cout<<"rhs-numChd: "<<numChd<<endl;
+    // cout<<"lhs-numval: "<<getNumValues()<<endl;
+    // cout<<"lhs-numChd: "<<getNumChildren()<<endl;
+    int lhs_num = getNumChildren();
+    //remove_value(num_values - 1);
+    //remove_child(num_children - 1);
 
     Bnode* tmp = rhs->getChild(0);
-    Bnode_inner* inner = dynamic_cast<Bnode_inner*>(tmp);
+    //Bnode_inner* inner = dynamic_cast<Bnode_inner*>(tmp);
     VALUETYPE val;
-    if(inner){
-        val = inner->get(0);
-    }
-    else{
-        Bnode_leaf* leaf = dynamic_cast<Bnode_leaf*>(tmp);
-        val = leaf->get(0);
-    }
+    while(1)
+    {
+        Bnode_leaf* inner = dynamic_cast<Bnode_leaf*>(tmp);
+        if(inner){
+            Bnode_leaf* leaf = dynamic_cast<Bnode_leaf*>(tmp);
+            val = leaf->get(0);
+            break;
+        }
+        else
+        {   
+            cout<<"inner"<<endl;
+            tmp = dynamic_cast<Bnode_inner*>(tmp)->getChild(0);
+        }
 
+    }
+    // if(inner){
+    //     tmp = dynamic_cast<Bnode_inner*>(tmp);
+    //     val = inner->get(0);
+    // }
+    // else{
+    //     Bnode_leaf* leaf = dynamic_cast<Bnode_leaf*>(tmp);
+    //     val = leaf->get(0);
+    // }
+
+    cout<<"val:"<<val<<endl;
     insert(val);
+    // cout<<"2-lhs-numval: "<<getNumValues()<<endl;
+    // cout<<"2-lhs-numChd: "<<getNumChildren()<<endl;
 
-    for(int i = 0; i != numval; ++i){
+    for(int i = 0; i < numval; ++i){
         insert(rhs->get(i));
     }
-
-    for(int i = 0; i != numChd; ++i){
-        insert(rhs->getChild(i), numChd+i);
+    // cout<<"3-lhs-numval: "<<getNumValues()<<endl;
+    // cout<<"3-lhs-numChd: "<<getNumChildren()<<endl;
+    for(int i = 0; i < numChd; ++i){
+        insert(rhs->getChild(i), lhs_num + i);
+        rhs->getChild(i)->parent = this;
     }
-
+    // cout<<"4-lhs-numval: "<<getNumValues()<<endl;
+    cout<<"4-lhs-numChd: "<<getNumChildren()<<endl;
     rhs->clear();
     return parent->values[parent_idx];
 
@@ -48,7 +75,26 @@ VALUETYPE Bnode_inner::redistribute(Bnode_inner* rhs, int parent_idx) {
     vector<Bnode*> all_children(children, children + num_children);
 
     int rhs_num = rhs->getNumValues();
+    //cout<<"rhs_num"<<rhs_num<<endl;
     int rhs_chd = rhs->getNumChildren();
+    //cout<<"rhs_chd"<<rhs_chd<<endl;
+    int lhs_num = getNumValues();
+    //cout<<"lhs_num"<<lhs_num<<endl;
+    int lhs_chd = getNumChildren();
+    //cout<<"lhs_chd"<<lhs_chd<<endl;
+    VALUETYPE value;
+    Bnode_inner* test = dynamic_cast<Bnode_inner*>(rhs->getChild(0));
+    if(test) value = test->get(0);
+    else
+    {
+        Bnode_leaf* leaf_test = dynamic_cast<Bnode_leaf*>(rhs->getChild(0));
+        value = leaf_test->get(0);
+    }
+    int temp;
+    if(rhs_chd > lhs_chd) temp = 0;
+    else temp = 1;
+    //cout<<"temp: "<<temp<<endl;
+    
 
     for(int i = 0; i != rhs_num; ++i){
         all_values.push_back(rhs->get(i));
@@ -66,12 +112,27 @@ VALUETYPE Bnode_inner::redistribute(Bnode_inner* rhs, int parent_idx) {
     for (int i = all_values.size()/2; i < all_values.size(); ++i)
         rhs->insert(all_values[i]);
 
-    for (int i = 0; i < all_children.size()/2; ++i)
+    for (int i = 0; i < all_children.size()/2; ++i){
         insert(all_children[i], i);
+        all_children[i]->parent = this;
+    }
 
-    for (int i = all_children.size()/2; i < all_children.size(); ++i)
+    for (int i = all_children.size()/2; i < all_children.size(); ++i){
         rhs->insert(all_children[i], i - all_children.size()/2);
+        all_children[i]->parent = rhs;
+    }
+    //cout<<"rep"<<endl;
 
+    // cout<<"rhs_num"<<rhs->getNumValues()<<endl;
+    // cout<<"rhs_chd"<<rhs->getNumChildren()<<endl;
+    
+    // cout<<"lhs_num"<<getNumValues()<<endl;
+    // cout<<"lhs_chd"<<getNumChildren()<<endl;
+
+    if(temp == 0)
+        replace_value(value, getNumValues() - 1);
+    else
+        rhs->replace_value(value, rhs->getNumValues() - rhs_num - 1);
     VALUETYPE res = all_values[all_values.size()/2];
     if(rhs->parent == parent){
         int idx = parent->find_child(rhs);
@@ -101,7 +162,7 @@ Bnode_inner* Bnode_inner::split(VALUETYPE& output_val, VALUETYPE insert_value, B
 
     // Give the first BTREE_FANOUT/2 values to this bnode
     clear();
-    for (int i = 0; i < BTREE_FANOUT/2; ++i)
+    for (int i = 0; i < (BTREE_FANOUT - 1)/2; ++i)
         insert(all_values[i]);
     for (int i = 0, idx = 0; i < (BTREE_FANOUT/2) + 1; ++i, ++idx) {
         insert(all_children[i], idx);
@@ -112,7 +173,7 @@ Bnode_inner* Bnode_inner::split(VALUETYPE& output_val, VALUETYPE insert_value, B
     output_val = all_values[BTREE_FANOUT/2];
 
     // Give the last BTREE/2 values to the new bnode
-    for (int i = (BTREE_FANOUT/2) + 1; i < all_values.size(); ++i)
+    for (int i = (BTREE_FANOUT + 1)/2; i < all_values.size(); ++i)
         split_node->insert(all_values[i]);
     for (int i = (BTREE_FANOUT/2) + 1, idx = 0; i < all_children.size(); ++i, ++idx) {
         split_node->insert(all_children[i], idx);
@@ -126,6 +187,7 @@ Bnode_inner* Bnode_inner::split(VALUETYPE& output_val, VALUETYPE insert_value, B
     assert(split_node->getNumChildren() == num_values + 1);
 
     split_node->parent = parent; // they are siblings
+    //cout<<"///////"<<parent->getNumChildren()<<endl;
 
     return split_node;
 }
